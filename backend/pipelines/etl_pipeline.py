@@ -45,7 +45,13 @@ class ETLPipeline:
 
     def write_to_iceberg(self, rows, columns):
         from pyiceberg.catalog import load_catalog
+        from pyiceberg.schema import Schema
+        from pyiceberg.types import (
+            BooleanType, IntegerType, LongType, FloatType, DoubleType, DecimalType,
+            StringType, BinaryType, DateType, TimeType, TimestampType
+        )
         import pandas as pd
+        import snowflake.connector
 
         catalog_name = self.target_config.get('catalog')
         rest_uri = self.target_config.get('rest_uri')
@@ -53,6 +59,7 @@ class ETLPipeline:
         tgt_schema = self.pipeline_config['target_schema']
         tgt_table = self.pipeline_config['target_table']
         mode = self.pipeline_config.get('mode', 'append')
+        table_path = f"{tgt_db}.{tgt_schema}.{tgt_table}"
 
         # Load Iceberg catalog via REST
         catalog = load_catalog(
@@ -61,8 +68,63 @@ class ETLPipeline:
             # Add authentication if needed
             **self.target_config.get('auth', {})
         )
-        table_path = f"{tgt_db}.{tgt_schema}.{tgt_table}"
-        table = catalog.load_table(table_path)
+
+        # Check if table exists, if not, create it
+        try:
+            table = catalog.load_table(table_path)
+        except Exception:
+            # Get source column definitions from Snowflake
+            src_conn = snowflake.connector.connect(
+                account=self.source_config['account'],
+                user=self.source_config['user'],
+                password=self.source_config['password'],
+                warehouse=self.source_config['warehouse'],
+            )
+            src_db = self.pipeline_config['source_database']
+            src_schema = self.pipeline_config['source_schema']
+            src_table = self.pipeline_config['source_table']
+            cur = src_conn.cursor()
+            cur.execute(f"SHOW COLUMNS IN TABLE {src_db}.{src_schema}.{src_table}")
+            columns_info = cur.fetchall()
+            cur.close()
+            src_conn.close()
+
+            # Map Snowflake types to Iceberg types
+            def snowflake_to_iceberg_type(sf_type):
+                sf_type = sf_type.upper()
+                if sf_type.startswith('NUMBER') or sf_type.startswith('INT'):
+                    return IntegerType()
+                if sf_type.startswith('FLOAT') or sf_type.startswith('DOUBLE'):
+                    return DoubleType()
+                if sf_type.startswith('BOOLEAN'):
+                    return BooleanType()
+                if sf_type.startswith('DATE'):
+                    return DateType()
+                if sf_type.startswith('TIME'):
+                    return TimeType()
+                if sf_type.startswith('TIMESTAMP'):
+                    return TimestampType()
+                if sf_type.startswith('BINARY'):
+                    return BinaryType()
+                if sf_type.startswith('VARCHAR') or sf_type.startswith('TEXT') or sf_type.startswith('STRING'):
+                    return StringType()
+                # Default fallback
+                return StringType()
+
+            iceberg_fields = []
+            for idx, col in enumerate(columns_info):
+                # Snowflake SHOW COLUMNS returns: name, type, kind, null?, default, etc.
+                col_name = col[1]
+                col_type = col[2]
+                iceberg_type = snowflake_to_iceberg_type(col_type)
+                iceberg_fields.append((col_name, iceberg_type, idx+1))
+
+            schema = Schema(*[
+                (name, typ, pos) for name, typ, pos in iceberg_fields
+            ])
+            # Create the table in Iceberg
+            catalog.create_table(table_path, schema)
+            table = catalog.load_table(table_path)
 
         # Convert rows to DataFrame for easier writing
         df = pd.DataFrame(rows, columns=columns)
