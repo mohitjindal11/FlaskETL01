@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ETL Pipeline Configurator</title>
+    <title>Iceberg Data Ingestion Tool</title>
     <link rel="stylesheet" type="text/css" href="https://www.jeasyui.com/easyui/themes/default/easyui.css">
     <link rel="stylesheet" type="text/css" href="https://www.jeasyui.com/easyui/themes/icon.css">
     <script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -11,11 +11,26 @@
     html, body { height: 100%; margin: 0; padding: 0; }
     #main { display: none; }
     .easyui-tabs { min-height: 800px; }
+    #login {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #fff;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+        border-radius: 8px;
+        padding: 32px 40px 24px 40px;
+        min-width: 320px;
+        z-index: 1000;
+    }
+    @media (max-width: 500px) {
+        #login { min-width: 90vw; padding: 24px 10vw; }
+    }
     </style>
 </head>
 <body>
     <div id="login">
-        <h2>Login</h2>
+    <h2>Iceberg Data Ingestion Tool</h2>
         <form id="loginForm">
             <input class="easyui-textbox" name="username" style="width:200px" prompt="Username" required><br><br>
             <input class="easyui-textbox" name="password" type="password" style="width:200px" prompt="Password" required><br><br>
@@ -24,9 +39,9 @@
         <div id="loginMsg" style="color:red;"></div>
     </div>
     <div id="main">
-    <div style="margin-top:20px;">
+    <div>
             <div style="padding: 10px 0 0 10px;">
-                <h2 style="display:inline-block; margin-right:20px;">ETL Pipeline Configurator</h2>
+                <h2 style="display:inline-block; margin-right:20px;">Iceberg Data Ingestion Tool</h2>
                 <a href="#" class="easyui-linkbutton" onclick="logout()">Logout</a>
             </div>
             <div class="easyui-tabs" style="width:1600px;height:600px;">
@@ -83,6 +98,16 @@
                     </div>
                     </table>
                     <script>
+        function logout() {
+            $.ajax({
+                url: '/api/logout',
+                method: 'POST',
+                complete: function() {
+                    $('#main').hide();
+                    $('#login').show();
+                }
+            });
+        }
         function saveAddConfig() {
             var data = {
                 name: $('#addConfigForm [name=name]').val(),
