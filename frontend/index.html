@@ -79,6 +79,7 @@
                         <a href="#" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="$('#addConfigForm').form('clear');$('#addConfigDlg').dialog('open').dialog('setTitle', 'Add Config')"></a>
                         <a href="#" id="editConfigBtn" class="easyui-linkbutton" iconCls="icon-edit" plain="true" disabled></a>
                         <a href="#" id="deleteConfigBtn" class="easyui-linkbutton" plain="true" disabled style="color:red;font-weight:bold;font-size:16px;">&#10006;</a>
+                        <a href="#" id="refreshConfigsBtn" class="easyui-linkbutton" iconCls="icon-reload" plain="true"></a>
                     </div>
                     </table>
                     <script>
@@ -185,6 +186,7 @@
                         <a href="#" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="$('#addPipelineDlg').dialog('open').dialog('setTitle', 'Add Pipeline')"></a>
                         <a href="#" id="editPipelineBtn" class="easyui-linkbutton" iconCls="icon-edit" plain="true" disabled></a>
                         <a href="#" id="deletePipelineBtn" class="easyui-linkbutton" plain="true" disabled style="color:red;font-weight:bold;font-size:16px;">&#10006;</a>
+                        <a href="#" id="refreshPipelinesBtn" class="easyui-linkbutton" iconCls="icon-reload" plain="true"></a>
                     </div>
                     <div id="addPipelineDlg" class="easyui-dialog" style="width:500px;padding:10px" closed="true" buttons="#addPipelineDlgBtns">
                         <form id="addPipelineForm">
@@ -300,7 +302,10 @@
                     <div id="runMsg"></div>
                 </div>
                 <div title="Pipeline History" style="padding:10px;">
-                    <table id="historyTable" class="easyui-datagrid" style="width:100%;height:500px;">
+                    <div id="historyToolbar" style="margin-bottom:8px">
+                        <a href="#" id="refreshHistoryBtn" class="easyui-linkbutton" iconCls="icon-reload" plain="true"></a>
+                    </div>
+                    <table id="historyTable" class="easyui-datagrid" style="width:100%;height:500px;" data-options="toolbar:'#historyToolbar'">
                         <thead>
                             <tr>
                                 <th field="id" width="30">Run ID</th>
