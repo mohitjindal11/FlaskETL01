@@ -1,0 +1,5 @@
+Flask==2.0.0
+Flask-Cors==5.0.0
+snowflake-connector-python==3.0.4
+pyiceberg
+psutil==7.0.0

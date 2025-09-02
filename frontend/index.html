@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ETL Pipeline Configurator</title>
+    <link rel="stylesheet" type="text/css" href="https://www.jeasyui.com/easyui/themes/default/easyui.css">
+    <link rel="stylesheet" type="text/css" href="https://www.jeasyui.com/easyui/themes/icon.css">
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" src="https://www.jeasyui.com/easyui/jquery.easyui.min.js"></script>
+    <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #main { display: none; }
+    .easyui-tabs { min-height: 800px; }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input class="easyui-textbox" name="username" style="width:200px" prompt="Username" required><br><br>
+            <input class="easyui-textbox" name="password" type="password" style="width:200px" prompt="Password" required><br><br>
+            <a href="#" class="easyui-linkbutton" onclick="doLogin()">Login</a>
+        </form>
+        <div id="loginMsg" style="color:red;"></div>
+    </div>
+    <div id="main">
+    <div style="margin-top:20px;">
+            <div style="padding: 10px 0 0 10px;">
+                <h2 style="display:inline-block; margin-right:20px;">ETL Pipeline Configurator</h2>
+                <a href="#" class="easyui-linkbutton" onclick="logout()">Logout</a>
+            </div>
+            <div class="easyui-tabs" style="width:1600px;height:600px;">
+                <div title="Source/Target Configs" style="padding:10px;">
+                    <a href="#" class="easyui-linkbutton" onclick="$('#addConfigDlg').dialog('open').dialog('setTitle', 'Add Config')">Add Config</a>
+                    <div id="addConfigDlg" class="easyui-dialog" style="width:400px;padding:10px" closed="true" buttons="#addConfigDlgBtns">
+                        <form id="addConfigForm">
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="name" style="width:100%" prompt="Config Name" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-combobox" name="type" style="width:100%" data-options="valueField:'type',textField:'type',data:[{type:'source'},{type:'target'}]" prompt="Type" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="config" style="width:100%;height:120px;" prompt="Config (JSON)" multiline="true" required>
+                            </div>
+                            <div style="font-size:12px;color:#888;margin-top:5px;">
+                                <b>Source/Target Config Example:</b><br>
+                                <pre style="margin:0;">{
+    "account": "your_account",
+    "user": "your_username",
+    "password": "your_password",
+    "warehouse": "your_warehouse"
+}</pre>
+                                <b>Target Config Example (PyIceberg):</b><br>
+                                <pre style="margin:0;">{
+    "catalog": "my_catalog",
+    "rest_uri": "https://my-iceberg-rest-endpoint/api/v1",
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret"
+}</pre>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="addConfigDlgBtns">
+                        <a href="#" class="easyui-linkbutton" onclick="saveAddConfig()">Add</a>
+                        <a href="#" class="easyui-linkbutton" onclick="$('#addConfigDlg').dialog('close')">Cancel</a>
+                    </div>
+                    <table id="configsTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                        <thead>
+                            <tr>
+                                <th field="id" width="30">ID</th>
+                                <th field="name" width="120">Name</th>
+                                <th field="type" width="80">Type</th>
+                                <th field="config" width="250">Config</th>
+                                <th field="action" width="120">Action</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <script>
+        function saveAddConfig() {
+            var data = {
+                name: $('#addConfigForm [name=name]').val(),
+                type: $('#addConfigForm [name=type]').val(),
+                config: $('#addConfigForm [name=config]').val()
+            };
+            $.ajax({
+                url: '/api/configs',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    $('#addConfigDlg').dialog('close');
+                    $('#configsTable').datagrid('reload');
+                }
+            });
+        }
+                    function configActionFormatter(value, row, index) {
+                        return '<a href="#" class="easyui-linkbutton" onclick="editConfig(' + row.id + ')">Edit</a> '
+                            + '<a href="#" class="easyui-linkbutton" onclick="deleteConfig(' + row.id + ')">Delete</a> '
+                            + '<a href="#" class="easyui-linkbutton" onclick="testConnection(' + row.id + ')">Test Connection</a>';
+                    }
+                    function testConnection(id) {
+                        var row = $('#configsTable').datagrid('getRows').find(r => r.id === id);
+                        if(!row) return;
+                        $.ajax({
+                            url: '/api/test_connection',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ config: row.config, type: row.type }),
+                            success: function(res) {
+                                $.messager.alert('Test Connection', res.message || 'Connection successful', 'info');
+                            },
+                            error: function(xhr) {
+                                var msg = 'Connection failed';
+                                if(xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+                                $.messager.alert('Test Connection', msg, 'error');
+                            }
+                        });
+                    }
+                    </script>
+                    <div id="editConfigDlg" class="easyui-dialog" style="width:400px;padding:10px" closed="true" buttons="#editConfigDlgBtns">
+                        <form id="editConfigForm">
+                            <input type="hidden" name="id">
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="name" style="width:100%" prompt="Config Name" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-combobox" name="type" style="width:100%" data-options="valueField:'type',textField:'type',data:[{type:'source'},{type:'target'}]" prompt="Type" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="config" style="width:100%;height:120px;" prompt="Config (JSON)" multiline="true" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="editConfigDlgBtns">
+                        <a href="#" class="easyui-linkbutton" onclick="saveConfigEdit()">Save</a>
+                        <a href="#" class="easyui-linkbutton" onclick="$('#editConfigDlg').dialog('close')">Cancel</a>
+                    </div>
+                </div>
+                <div title="Pipelines" style="padding:10px;">
+                    <a href="#" class="easyui-linkbutton" onclick="$('#addPipelineDlg').dialog('open').dialog('setTitle', 'Add Pipeline')">Add Pipeline</a>
+                    <div id="addPipelineDlg" class="easyui-dialog" style="width:500px;padding:10px" closed="true" buttons="#addPipelineDlgBtns">
+                        <form id="addPipelineForm">
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="name" style="width:100%" prompt="Pipeline Name" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <select class="easyui-combobox" name="source_id" id="addSourceDropdown" style="width:100%" required data-options="prompt:'Select Source'"></select>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <select class="easyui-combobox" name="target_id" id="addTargetDropdown" style="width:100%" required data-options="prompt:'Select Target'"></select>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_database" style="width:100%" prompt="Source Database" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_schema" style="width:100%" prompt="Source Schema" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_table" style="width:100%" prompt="Source Table" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_database" style="width:100%" prompt="Target Database" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_schema" style="width:100%" prompt="Target Schema" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_table" style="width:100%" prompt="Target Table" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="pipeline_config" style="width:100%;height:120px;" prompt="Pipeline Config (JSON)" multiline="true" required>
+                            </div>
+                            <div style="font-size:12px;color:#888;margin-top:5px;">
+                                <b>Pipeline Config Example:</b><br>
+                                <pre style="margin:0;">{
+    "columns": ["id", "name", "created_at"],
+    "filter": "created_at >= '2023-01-01'",
+    "batch_size": 1000,
+    "mode": "append"
+}</pre>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="addPipelineDlgBtns">
+                        <a href="#" class="easyui-linkbutton" onclick="saveAddPipeline()">Add</a>
+                        <a href="#" class="easyui-linkbutton" onclick="$('#addPipelineDlg').dialog('close')">Cancel</a>
+                    </div>
+                    <table id="pipelinesTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                        <thead>
+                            <tr>
+                                <th field="id" width="30">ID</th>
+                                <th field="name" width="120">Name</th>
+                                <th field="source_id" width="80">Source ID</th>
+                                <th field="target_id" width="80">Target ID</th>
+                                <th field="source_database" width="120">Source Database</th>
+                                <th field="source_schema" width="120">Source Schema</th>
+                                <th field="source_table" width="120">Source Table</th>
+                                <th field="target_database" width="120">Target Database</th>
+                                <th field="target_schema" width="120">Target Schema</th>
+                                <th field="target_table" width="120">Target Table</th>
+                                <th field="pipeline_config" width="250">Config</th>
+                                <th field="action" width="120">Action</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div id="editPipelineDlg" class="easyui-dialog" style="width:400px;padding:10px" closed="true" buttons="#editPipelineDlgBtns">
+                        <form id="editPipelineForm">
+                            <input type="hidden" name="id">
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="name" style="width:100%" prompt="Pipeline Name" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <select class="easyui-combobox" name="source_id" id="editSourceDropdown" style="width:100%" required data-options="prompt:'Select Source'"></select>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <select class="easyui-combobox" name="target_id" id="editTargetDropdown" style="width:100%" required data-options="prompt:'Select Target'"></select>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_database" style="width:100%" prompt="Source Database" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_schema" style="width:100%" prompt="Source Schema" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="source_table" style="width:100%" prompt="Source Table" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_database" style="width:100%" prompt="Target Database" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_schema" style="width:100%" prompt="Target Schema" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="target_table" style="width:100%" prompt="Target Table" required>
+                            </div>
+                            <div style="margin-bottom:10px">
+                                <input class="easyui-textbox" name="pipeline_config" style="width:100%;height:120px;" prompt="Pipeline Config (JSON)" multiline="true" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="editPipelineDlgBtns">
+                        <a href="#" class="easyui-linkbutton" onclick="savePipelineEdit()">Save</a>
+                        <a href="#" class="easyui-linkbutton" onclick="$('#editPipelineDlg').dialog('close')">Cancel</a>
+                    </div>
+<!-- Pipeline grid actions moved to <script> block below -->
+                </div>
+                <div title="Run Pipeline" style="padding:10px;">
+                    <form id="runForm">
+                        <select class="easyui-combobox" name="pipeline_id" id="runPipelineDropdown" style="width:300px" required data-options="prompt:'Select Pipeline'"></select>
+                        <a href="#" class="easyui-linkbutton" onclick="runPipeline()">Run</a>
+                    </form>
+                    <div id="runMsg"></div>
+                </div>
+                <div title="Pipeline History" style="padding:10px;">
+                    <table id="historyTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                        <thead>
+                            <tr>
+                                <th field="id" width="30">Run ID</th>
+                                <th field="pipeline_id" width="60">Pipeline ID</th>
+                                <th field="started_at" width="160">Started At</th>
+                                <th field="ended_at" width="160">Ended At</th>
+                                <th field="status" width="100">Status</th>
+                                <th field="migrated_count" width="100">Migrated Records</th>
+                                <th field="error" width="250">Error</th>
+                                <th field="action" width="120">Action</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div title="System Summary" style="padding:10px;">
+                    <table id="systemSummaryTable" class="easyui-propertygrid" style="width:100%;height:180px;">
+                    </table>
+                    <a href="#" class="easyui-linkbutton" onclick="refreshSystemSummary()">Refresh</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // --- System Summary ---
+        function refreshSystemSummary() {
+            $.get('/api/system_summary', function(data) {
+                var rows = [
+                    {name: 'CPU Usage (%)', value: data.cpu_percent},
+                    {name: 'RAM Usage (%)', value: data.ram_percent},
+                    {name: 'RAM Used (MB)', value: (data.ram_used/1024/1024).toFixed(1)},
+                    {name: 'RAM Total (MB)', value: (data.ram_total/1024/1024).toFixed(1)},
+                    {name: 'Disk Usage (%)', value: data.disk_percent},
+                    {name: 'Disk Used (GB)', value: (data.disk_used/1024/1024/1024).toFixed(2)},
+                    {name: 'Disk Total (GB)', value: (data.disk_total/1024/1024/1024).toFixed(2)}
+                ];
+                $('#systemSummaryTable').propertygrid({
+                    showGroup: false,
+                    columns: [[
+                        {field:'name',title:'Metric',width:180},
+                        {field:'value',title:'Value',width:120}
+                    ]],
+                    data: rows
+                });
+            });
+        }
+        // Auto-refresh on tab select
+        $(function() {
+            function populatePipelineDropdown() {
+                $.get('/api/pipelines', function(pipelines) {
+                    var opts = pipelines.map(function(p){return {value:p.id,text:p.id+' - '+p.name};});
+                    $('#runPipelineDropdown').combobox({data:opts,prompt:'Select Pipeline'});
+                });
+            }
+            populatePipelineDropdown();
+            $('.easyui-tabs').tabs({
+                onSelect: function(title) {
+                    if(title === 'System Summary') {
+                        refreshSystemSummary();
+                    }
+                }
+            });
+        });
+        // --- Pipeline grid actions ---
+        function pipelineActionFormatter(value, row, index) {
+            return '<a href="#" class="easyui-linkbutton" onclick="editPipeline(' + row.id + ')">Edit</a> '
+                + '<a href="#" class="easyui-linkbutton" onclick="deletePipeline(' + row.id + ')">Delete</a>';
+        }
+
+        function editPipeline(id) {
+            var row = $('#pipelinesTable').datagrid('getRows').find(r => r.id === id);
+            if(row) {
+                $('#editPipelineForm').form('load', row);
+                // Set dropdowns to correct value after form load and after dropdowns are populated
+                setTimeout(function(){
+                    $('#editSourceDropdown').combobox('setValue', row.source_id);
+                    $('#editTargetDropdown').combobox('setValue', row.target_id);
+                }, 200);
+                $('#editPipelineDlg').dialog('open').dialog('setTitle', 'Edit Pipeline');
+            }
+        }
+
+        function savePipelineEdit() {
+            var data = {
+                name: $('#editPipelineForm [name=name]').val(),
+                source_id: $('#editPipelineForm [name=source_id]').val(),
+                target_id: $('#editPipelineForm [name=target_id]').val(),
+                pipeline_config: $('#editPipelineForm [name=pipeline_config]').val()
+            };
+            var id = $('#editPipelineForm [name=id]').val();
+            $.ajax({
+                url: '/api/pipelines/' + id,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    $('#editPipelineDlg').dialog('close');
+                    $('#pipelinesTable').datagrid('reload');
+                }
+            });
+        }
+
+        function deletePipeline(id) {
+            $.ajax({
+                url: '/api/pipelines/' + id,
+                method: 'DELETE',
+                success: function() {
+                    $('#pipelinesTable').datagrid('reload');
+                }
+            });
+        }
+        function doLogin() {
+            var data = {
+                username: $('[name=username]').val(),
+                password: $('[name=password]').val()
+            };
+            $.ajax({
+                url: '/api/login',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(res) {
+                    if(res.success) {
+                        $('#login').hide();
+                        $('#main').css('display', 'block');
+                        reloadTables();
+                    } else {
+                        $('#loginMsg').text(res.error);
+                    }
+                },
+                error: function() {
+                    $('#loginMsg').text('Login failed');
+                }
+            });
+        }
+        $(function() {
+            $('#configsTable').datagrid({
+                singleSelect: true,
+                method: 'get',
+                url: '/api/configs',
+                pagination: false,
+                columns: [[
+                    {field:'id',title:'ID',width:30},
+                    {field:'name',title:'Name',width:120},
+                    {field:'type',title:'Type',width:80},
+                    {field:'config',title:'Config',width:250},
+                    {field:'action',title:'Action',width:220,formatter:configActionFormatter}
+                ]],
+                onLoadSuccess: function() {
+                    $('.easyui-linkbutton').linkbutton();
+                }
+            });
+            $('#pipelinesTable').datagrid({
+                singleSelect: true,
+                method: 'get',
+                url: '/api/pipelines',
+                pagination: false,
+                columns: [[
+                    {field:'id',title:'ID',width:30},
+                    {field:'name',title:'Name',width:120},
+                    {field:'source_id',title:'Source',width:160,formatter:function(v,r){return r.source_id && r.source_name?r.source_id+' - '+r.source_name:v;}},
+                    {field:'target_id',title:'Target',width:160,formatter:function(v,r){return r.target_id && r.target_name?r.target_id+' - '+r.target_name:v;}},
+                    {field:'source_database',title:'Source Database',width:120},
+                    {field:'source_schema',title:'Source Schema',width:120},
+                    {field:'source_table',title:'Source Table',width:120},
+                    {field:'target_database',title:'Target Database',width:120},
+                    {field:'target_schema',title:'Target Schema',width:120},
+                    {field:'target_table',title:'Target Table',width:120},
+                    {field:'pipeline_config',title:'Config',width:250},
+                    {field:'action',title:'Action',width:180,formatter:pipelineActionFormatter}
+                ]],
+                onLoadSuccess: function() {
+                    $('.easyui-linkbutton').linkbutton();
+                }
+            });
+
+            function populateConfigDropdowns() {
+                $.get('/api/configs', function(configs) {
+                    var opts = configs.map(function(cfg){return {value:cfg.id,text:cfg.id+' - '+cfg.name};});
+                    $('#addSourceDropdown').combobox({data:opts,prompt:'Select Source'});
+                    $('#addTargetDropdown').combobox({data:opts,prompt:'Select Target'});
+                    $('#editSourceDropdown').combobox({data:opts,prompt:'Select Source'});
+                    $('#editTargetDropdown').combobox({data:opts,prompt:'Select Target'});
+                });
+            }
+            populateConfigDropdowns();
+
+            $('#addPipelineDlg').dialog({
+                onOpen: function(){populateConfigDropdowns();}
+            });
+            $('#editPipelineDlg').dialog({
+                onOpen: function(){populateConfigDropdowns();}
+            });
+            $('#historyTable').datagrid({
+                method: 'get',
+                url: '/api/pipeline_runs',
+                pagination: false,
+                columns: [[
+                    {field:'id',title:'Run ID',width:30},
+                    {field:'pipeline_id',title:'Pipeline ID',width:60},
+                    {field:'started_at',title:'Started At',width:160},
+                    {field:'ended_at',title:'Ended At',width:160},
+                    {field:'status',title:'Status',width:100},
+                    {field:'error',title:'Error',width:250}
+                ]]
+            });
+        });
+
+
+        function editConfig(id) {
+            var row = $('#configsTable').datagrid('getRows').find(r => r.id === id);
+            if(row) {
+                $('#editConfigForm').form('load', row);
+                $('#editConfigDlg').dialog('open').dialog('setTitle', 'Edit Config');
+            }
+        }
+
+        function saveConfigEdit() {
+            var data = {
+                name: $('#editConfigForm [name=name]').val(),
+                type: $('#editConfigForm [name=type]').val(),
+                config: $('#editConfigForm [name=config]').val()
+            };
+            var id = $('#editConfigForm [name=id]').val();
+            $.ajax({
+                url: '/api/configs/' + id,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    $('#editConfigDlg').dialog('close');
+                    $('#configsTable').datagrid('reload');
+                }
+            });
+        }
+
+        function deleteConfig(id) {
+            $.ajax({
+                url: '/api/configs/' + id,
+                method: 'DELETE',
+                success: function() {
+                    $('#configsTable').datagrid('reload');
+                }
+            });
+        }
+        function addPipeline() {
+            var config = {
+                source_database: $('#pipelineForm [name=source_database]').val(),
+                source_schema: $('#pipelineForm [name=source_schema]').val(),
+                source_table: $('#pipelineForm [name=source_table]').val(),
+                target_database: $('#pipelineForm [name=target_database]').val(),
+                target_schema: $('#pipelineForm [name=target_schema]').val(),
+                target_table: $('#pipelineForm [name=target_table]').val()
+            };
+            var extra = $('#pipelineForm [name=pipeline_config]').val();
+            if (extra) {
+                try {
+                    var extraObj = JSON.parse(extra);
+                    Object.assign(config, extraObj);
+                } catch (e) {
+                    alert('Pipeline Config (JSON) is invalid');
+                    return;
+                }
+            }
+            var data = {
+                name: $('#pipelineForm [name=name]').val(),
+                source_id: $('#pipelineForm [name=source_id]').val(),
+                target_id: $('#pipelineForm [name=target_id]').val(),
+                pipeline_config: JSON.stringify(config)
+            };
+            $.ajax({
+                url: '/api/pipelines',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function() {
+                    $('#pipelinesTable').datagrid('reload');
+                }
+            });
+        }
+        function runPipeline() {
+            var pipeline_id = $('#runPipelineDropdown').combobox('getValue');
+            if(!pipeline_id) {
+                $('#runMsg').text('Please select a pipeline');
+                return;
+            }
+            $.ajax({
+                url: '/api/run_pipeline/' + pipeline_id,
+                method: 'POST',
+                success: function(res) {
+                    if(res.success) {
+                        $('#runMsg').text('Pipeline run started');
+                    } else {
+                        $('#runMsg').text(res.error || 'Error running pipeline');
+                    }
+                },
+                error: function() {
+                    $('#runMsg').text('Error running pipeline');
+                }
+            });
+        }
+        function reloadTables() {
+            $('#configsTable').datagrid('reload');
+            $('#pipelinesTable').datagrid('reload');
+            $('#historyTable').datagrid('reload');
+        }
+
+        $(function() {
+            $('#historyTable').datagrid({
+                method: 'get',
+                url: '/api/pipeline_runs',
+                pagination: false,
+                columns: [[
+                    {field:'id',title:'Run ID',width:30},
+                    {field:'pipeline_id',title:'Pipeline ID',width:60},
+                    {field:'started_at',title:'Started At',width:160},
+                    {field:'ended_at',title:'Ended At',width:160},
+                    {field:'status',title:'Status',width:100},
+                    {field:'migrated_count',title:'Migrated Records',width:100},
+                    {field:'error',title:'Error',width:250},
+                    {field:'action',title:'Action',width:120,formatter:historyActionFormatter}
+                ]]
+            });
+        });
+
+        function historyActionFormatter(value, row, index) {
+            if(row.status === 'running') {
+                return '<a href="#" onclick="terminateRun(' + row.id + ')">Terminate</a>';
+            }
+            return '';
+        }
+
+        function terminateRun(run_id) {
+            $.ajax({
+                url: '/api/terminate_pipeline/' + run_id,
+                method: 'POST',
+                success: function(res) {
+                    $('#historyTable').datagrid('reload');
+                    alert(res.message);
+                },
+                error: function(xhr) {
+                    alert('Failed to terminate: ' + xhr.responseText);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
