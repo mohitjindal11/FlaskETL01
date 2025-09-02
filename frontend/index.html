@@ -31,7 +31,6 @@
             </div>
             <div class="easyui-tabs" style="width:1600px;height:600px;">
                 <div title="Source/Target Configs" style="padding:10px;">
-                    <a href="#" class="easyui-linkbutton" onclick="$('#addConfigDlg').dialog('open').dialog('setTitle', 'Add Config')">Add Config</a>
                     <div id="addConfigDlg" class="easyui-dialog" style="width:400px;padding:10px" closed="true" buttons="#addConfigDlgBtns">
                         <form id="addConfigForm">
                             <div style="margin-bottom:10px">
@@ -65,7 +64,7 @@
                         <a href="#" class="easyui-linkbutton" onclick="saveAddConfig()">Add</a>
                         <a href="#" class="easyui-linkbutton" onclick="$('#addConfigDlg').dialog('close')">Cancel</a>
                     </div>
-                    <table id="configsTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                    <table id="configsTable" class="easyui-datagrid" style="width:100%;height:500px;">
                         <thead>
                             <tr>
                                 <th field="id" width="30">ID</th>
@@ -75,6 +74,12 @@
                                 <th field="action" width="120">Action</th>
                             </tr>
                         </thead>
+                    </table>
+                    <div id="configsToolbar" style="margin-bottom:8px">
+                        <a href="#" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="$('#addConfigForm').form('clear');$('#addConfigDlg').dialog('open').dialog('setTitle', 'Add Config')"></a>
+                        <a href="#" id="editConfigBtn" class="easyui-linkbutton" iconCls="icon-edit" plain="true" disabled></a>
+                        <a href="#" id="deleteConfigBtn" class="easyui-linkbutton" plain="true" disabled style="color:red;font-weight:bold;font-size:16px;">&#10006;</a>
+                    </div>
                     </table>
                     <script>
         function saveAddConfig() {
@@ -95,9 +100,47 @@
             });
         }
                     function configActionFormatter(value, row, index) {
-                        return '<a href="#" class="easyui-linkbutton" onclick="editConfig(' + row.id + ')">Edit</a> '
-                            + '<a href="#" class="easyui-linkbutton" onclick="deleteConfig(' + row.id + ')">Delete</a> '
-                            + '<a href="#" class="easyui-linkbutton" onclick="testConnection(' + row.id + ')">Test Connection</a>';
+                        return '<a href="#" class="easyui-linkbutton" onclick="testConnection(' + row.id + ')">Test Connection</a>';
+        // Attach toolbar button click handlers after DOM is ready
+        $(function() {
+        // Bind refresh icon click reliably after all EasyUI components are initialized
+        $('#refreshSystemSummaryBtn').off('click').on('click', function(e) {
+            e.preventDefault();
+            refreshSystemSummary();
+        });
+        // Ensure refresh icon click handler is bound after EasyUI initializes the toolbar
+        $('#systemSummaryTable').propertygrid({
+            onLoadSuccess: function() {
+                $('#refreshSystemSummaryBtn').off('click').on('click', function(e) {
+                    e.preventDefault();
+                    refreshSystemSummary();
+                });
+            }
+        });
+        // Ensure refresh button event is bound after EasyUI tabs are initialized
+        $('.easyui-tabs').tabs({
+            onSelect: function(title) {
+                if(title === 'System Summary') {
+                    refreshSystemSummary();
+                }
+            }
+        });
+        // Bind refresh icon click after DOM and EasyUI are ready
+        setTimeout(function() {
+            $('#refreshSystemSummaryBtn').off('click').on('click', function(e) {
+                e.preventDefault();
+                refreshSystemSummary();
+            });
+        }, 300);
+            $('#editConfigBtn').off('click').on('click', function() {
+                var row = $('#configsTable').datagrid('getSelected');
+                if(row) editConfig(row.id);
+            });
+            $('#deleteConfigBtn').off('click').on('click', function() {
+                var row = $('#configsTable').datagrid('getSelected');
+                if(row) deleteConfig(row.id);
+            });
+        });
                     }
                     function testConnection(id) {
                         var row = $('#configsTable').datagrid('getRows').find(r => r.id === id);
@@ -138,7 +181,11 @@
                     </div>
                 </div>
                 <div title="Pipelines" style="padding:10px;">
-                    <a href="#" class="easyui-linkbutton" onclick="$('#addPipelineDlg').dialog('open').dialog('setTitle', 'Add Pipeline')">Add Pipeline</a>
+                    <div id="pipelinesToolbar" style="margin-bottom:8px">
+                        <a href="#" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="$('#addPipelineDlg').dialog('open').dialog('setTitle', 'Add Pipeline')"></a>
+                        <a href="#" id="editPipelineBtn" class="easyui-linkbutton" iconCls="icon-edit" plain="true" disabled></a>
+                        <a href="#" id="deletePipelineBtn" class="easyui-linkbutton" plain="true" disabled style="color:red;font-weight:bold;font-size:16px;">&#10006;</a>
+                    </div>
                     <div id="addPipelineDlg" class="easyui-dialog" style="width:500px;padding:10px" closed="true" buttons="#addPipelineDlgBtns">
                         <form id="addPipelineForm">
                             <div style="margin-bottom:10px">
@@ -186,7 +233,7 @@
                         <a href="#" class="easyui-linkbutton" onclick="saveAddPipeline()">Add</a>
                         <a href="#" class="easyui-linkbutton" onclick="$('#addPipelineDlg').dialog('close')">Cancel</a>
                     </div>
-                    <table id="pipelinesTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                    <table id="pipelinesTable" class="easyui-datagrid" style="width:100%;height:500px;">
                         <thead>
                             <tr>
                                 <th field="id" width="30">ID</th>
@@ -253,7 +300,7 @@
                     <div id="runMsg"></div>
                 </div>
                 <div title="Pipeline History" style="padding:10px;">
-                    <table id="historyTable" class="easyui-datagrid" style="width:100%;height:200px;">
+                    <table id="historyTable" class="easyui-datagrid" style="width:100%;height:500px;">
                         <thead>
                             <tr>
                                 <th field="id" width="30">Run ID</th>
@@ -269,9 +316,12 @@
                     </table>
                 </div>
                 <div title="System Summary" style="padding:10px;">
-                    <table id="systemSummaryTable" class="easyui-propertygrid" style="width:100%;height:180px;">
-                    </table>
-                    <a href="#" class="easyui-linkbutton" onclick="refreshSystemSummary()">Refresh</a>
+                    <div id="systemSummaryToolbar" style="margin-bottom:8px">
+                        <a href="#" id="refreshSystemSummaryBtn" class="easyui-linkbutton" iconCls="icon-reload" plain="true"></a>
+                    </div>
+                    <table id="systemSummaryTable" class="easyui-propertygrid" style="width:100%;height:500px;" data-options="toolbar:'#systemSummaryToolbar'"></table>
+    <!-- No JS code here, event binding moved to main script block below -->
+    <!-- Removed stray JS code from here. Event binding is handled in the main script block below. -->
                 </div>
             </div>
         </div>
@@ -318,8 +368,7 @@
         });
         // --- Pipeline grid actions ---
         function pipelineActionFormatter(value, row, index) {
-            return '<a href="#" class="easyui-linkbutton" onclick="editPipeline(' + row.id + ')">Edit</a> '
-                + '<a href="#" class="easyui-linkbutton" onclick="deletePipeline(' + row.id + ')">Delete</a>';
+            return '';
         }
 
         function editPipeline(id) {
@@ -399,10 +448,34 @@
                     {field:'name',title:'Name',width:120},
                     {field:'type',title:'Type',width:80},
                     {field:'config',title:'Config',width:250},
-                    {field:'action',title:'Action',width:220,formatter:configActionFormatter}
+                    {field:'action',title:'Action',width:120,formatter:configActionFormatter}
                 ]],
+                toolbar: '#configsToolbar',
+                onSelect: function(index, row) {
+                    $('#editConfigBtn').linkbutton('enable');
+                    $('#deleteConfigBtn').linkbutton('enable');
+                },
+                onUnselect: function(index, row) {
+                    $('#editConfigBtn').linkbutton('disable');
+                    $('#deleteConfigBtn').linkbutton('disable');
+                },
                 onLoadSuccess: function() {
+                    $('#editConfigBtn').linkbutton('disable');
+                    $('#deleteConfigBtn').linkbutton('disable');
                     $('.easyui-linkbutton').linkbutton();
+                    // Rebind toolbar button events after datagrid is initialized
+                    $('#editConfigBtn').off('click').on('click', function() {
+                        var row = $('#configsTable').datagrid('getSelected');
+                        if(row) editConfig(row.id);
+                    });
+                    $('#deleteConfigBtn').off('click').on('click', function() {
+                        var row = $('#configsTable').datagrid('getSelected');
+                        if(row) {
+                            $.messager.confirm('Confirm Delete', 'Are you sure you want to delete selected row?', function(r){
+                                if(r) deleteConfig(row.id);
+                            });
+                        }
+                    });
                 }
             });
             $('#pipelinesTable').datagrid({
@@ -422,10 +495,34 @@
                     {field:'target_schema',title:'Target Schema',width:120},
                     {field:'target_table',title:'Target Table',width:120},
                     {field:'pipeline_config',title:'Config',width:250},
-                    {field:'action',title:'Action',width:180,formatter:pipelineActionFormatter}
+                    {field:'action',title:'Action',width:120,formatter:pipelineActionFormatter}
                 ]],
+                toolbar: '#pipelinesToolbar',
+                onSelect: function(index, row) {
+                    $('#editPipelineBtn').linkbutton('enable');
+                    $('#deletePipelineBtn').linkbutton('enable');
+                },
+                onUnselect: function(index, row) {
+                    $('#editPipelineBtn').linkbutton('disable');
+                    $('#deletePipelineBtn').linkbutton('disable');
+                },
                 onLoadSuccess: function() {
+                    $('#editPipelineBtn').linkbutton('disable');
+                    $('#deletePipelineBtn').linkbutton('disable');
                     $('.easyui-linkbutton').linkbutton();
+                    // Rebind toolbar button events after datagrid is initialized
+                    $('#editPipelineBtn').off('click').on('click', function() {
+                        var row = $('#pipelinesTable').datagrid('getSelected');
+                        if(row) editPipeline(row.id);
+                    });
+                    $('#deletePipelineBtn').off('click').on('click', function() {
+                        var row = $('#pipelinesTable').datagrid('getSelected');
+                        if(row) {
+                            $.messager.confirm('Confirm Delete', 'Are you sure you want to delete selected row?', function(r){
+                                if(r) deletePipeline(row.id);
+                            });
+                        }
+                    });
                 }
             });
 
