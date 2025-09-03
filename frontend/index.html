@@ -327,6 +327,9 @@
                     <div id="runMsg"></div>
                 </div>
                 <div title="Pipeline History" style="padding:10px;">
+                    <div style="margin-bottom:12px;">
+                        <a href="#" class="easyui-linkbutton" iconCls="icon-reload" plain="false" onclick="$('#historyTable').datagrid('reload')">Refresh</a>
+                    </div>
                     <div id="historyToolbar" style="margin-bottom:8px">
                         <a href="#" id="refreshHistoryBtn" class="easyui-linkbutton" iconCls="icon-reload" plain="true"></a>
                     </div>
@@ -706,10 +709,32 @@
         });
 
         function historyActionFormatter(value, row, index) {
+            var btns = '';
             if(row.status === 'running') {
-                return '<a href="#" onclick="terminateRun(' + row.id + ')">Terminate</a>';
+                btns += '<a href="#" onclick="terminateRun(' + row.id + ')">Terminate</a> ';
             }
-            return '';
+            btns += '<button class="easyui-linkbutton" onclick="showLog(' + row.id + ')">Logs</button>';
+            return btns;
+        }
+
+        function showLog(run_id) {
+            var dlgId = 'logDlg_' + run_id;
+            if($('#' + dlgId).length === 0) {
+                $('body').append('<div id="' + dlgId + '" class="easyui-dialog" style="width:700px;height:500px;padding:10px" closed="true"></div>');
+            }
+            $('#' + dlgId).dialog({
+                title: 'Pipeline Run Log: ' + run_id,
+                modal: true,
+                closed: false,
+                maximizable: true,
+                resizable: true
+            });
+            $('#' + dlgId).html('<div style="width:100%;height:100%;overflow:auto;"><pre id="logContent_' + run_id + '" style="white-space:pre-wrap;word-break:break-all;"></pre></div>');
+            $.get('/logs/PipelineRun_Log_' + run_id + '.log', function(data) {
+                $('#logContent_' + run_id).text(data);
+            }).fail(function() {
+                $('#logContent_' + run_id).text('Log file not found.');
+            });
         }
 
         function terminateRun(run_id) {

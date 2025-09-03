@@ -74,16 +74,38 @@ def run_pipeline(pipeline_id):
     c.execute('INSERT INTO pipeline_runs (pipeline_id, started_at, status) VALUES (?, ?, ?)', (pipeline_id, started_at, 'running'))
     run_id = c.lastrowid
     conn.commit()
+    log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../logs'))
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f'PipelineRun_Log_{run_id}.log')
+    def scrub_secrets(cfg):
+        if isinstance(cfg, dict):
+            scrubbed = cfg.copy()
+            for k in list(scrubbed.keys()):
+                if k.lower() in ['password', 'client_secret', 'secret', 'api_key', 'token', 'access_token', 'client_secret', 'client_id', 'key', 'private_key']:
+                    scrubbed[k] = '***REDACTED***'
+            return scrubbed
+        return cfg
+    def log(msg):
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f'{datetime.datetime.utcnow().isoformat()} | {msg}\n')
     try:
+        log(f'Pipeline run started. Pipeline ID: {pipeline_id}, Run ID: {run_id}')
+        log(f'Source config: {json.dumps(scrub_secrets(source_config))}')
+        log(f'Target config: {json.dumps(scrub_secrets(target_config))}')
+        log(f'Pipeline config: {json.dumps(scrub_secrets(pipeline_config))}')
         etl = ETLPipeline(source_config, target_config, pipeline_config)
         etl.run()
         ended_at = datetime.datetime.utcnow().isoformat()
+        log('Pipeline run completed successfully.')
         c.execute('UPDATE pipeline_runs SET ended_at=?, status=? WHERE id=?', (ended_at, 'completed', run_id))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'ETL job completed successfully'})
     except Exception as e:
+        import traceback
         ended_at = datetime.datetime.utcnow().isoformat()
+        stack = traceback.format_exc()
+        log(f'Pipeline run failed: {str(e)}\nStack trace:\n{stack}')
         c.execute('UPDATE pipeline_runs SET ended_at=?, status=?, error=? WHERE id=?', (ended_at, 'failed', str(e), run_id))
         conn.commit()
         conn.close()

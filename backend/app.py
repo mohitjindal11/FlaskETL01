@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, abort
 from flask_cors import CORS
 import os
 from auth.routes import auth_bp
@@ -8,6 +8,16 @@ from system.routes import system_bp
 from test_connection.routes import test_connection_bp
 
 app = Flask(__name__)
+# Register blueprints
+import os
+# Serve log files for pipeline runs
+@app.route('/logs/<path:filename>')
+def serve_log_file(filename):
+    logs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'logs'))
+    file_path = os.path.join(logs_dir, filename)
+    if not os.path.isfile(file_path):
+        abort(404)
+    return send_from_directory(logs_dir, filename)
 app.secret_key = 'supersecretkey'  # Change for production
 CORS(app)
 

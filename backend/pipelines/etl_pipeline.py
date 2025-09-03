@@ -1,5 +1,8 @@
 import snowflake.connector
 import json
+import urllib3
+import requests
+from utils.snowflake_conn import get_snowflake_connection
 
 class ETLPipeline:
     def __init__(self, source_config, target_config, pipeline_config):
@@ -9,12 +12,7 @@ class ETLPipeline:
 
     def run(self, batch_callback=None):
         # Connect to Snowflake source
-        src_conn = snowflake.connector.connect(
-            account=self.source_config['account'],
-            user=self.source_config['user'],
-            password=self.source_config['password'],
-            warehouse=self.source_config['warehouse'],
-        )
+        src_conn = get_snowflake_connection(self.source_config)
         src_db = self.pipeline_config['source_database']
         src_schema = self.pipeline_config['source_schema']
         src_table = self.pipeline_config['source_table']
@@ -34,7 +32,7 @@ class ETLPipeline:
         while True:
             if hasattr(self, '_terminate') and self._terminate():
                 break
-            rows = cur.fetchmany(batch_size)
+            rows = cur.fetchmany(int(batch_size))
             if not rows:
                 break
             self.write_to_iceberg(rows, columns)
@@ -62,24 +60,19 @@ class ETLPipeline:
         table_path = f"{tgt_db}.{tgt_schema}.{tgt_table}"
 
         # Load Iceberg catalog via REST
+
         catalog = load_catalog(
-            catalog_name,
-            uri=rest_uri,
-            # Add authentication if needed
-            **self.target_config.get('auth', {})
+            self.target_config.get('catalog', 'rest'),
+            **{k: v for k, v in self.target_config.items() if k != 'catalog'}
         )
+               
 
         # Check if table exists, if not, create it
         try:
             table = catalog.load_table(table_path)
         except Exception:
             # Get source column definitions from Snowflake
-            src_conn = snowflake.connector.connect(
-                account=self.source_config['account'],
-                user=self.source_config['user'],
-                password=self.source_config['password'],
-                warehouse=self.source_config['warehouse'],
-            )
+            src_conn = get_snowflake_connection(self.source_config)
             src_db = self.pipeline_config['source_database']
             src_schema = self.pipeline_config['source_schema']
             src_table = self.pipeline_config['source_table']
